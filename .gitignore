@@ -1,0 +1,15 @@
+debug/
+logs/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+*.log
+.DS_Store
+Thumbs.db
+build/
+dist/
+portable/
+*.spec.bak

@@ -1,0 +1,118 @@
+window:
+  title_contains: "英雄没有闪"
+  reference_width: 550
+  reference_height: 1020
+  aspect_ratio_tolerance: 0.05
+  minimum_width: 300
+  minimum_height: 500
+
+capture:
+  interval: 0.12
+  battle_interval: 0.08
+  locate_retry_interval: 1.0
+  max_frame_age: 1.0
+
+matching:
+  select_anchor_threshold: 0.78
+  # 实机 558x999 窗口下通常约 0.77；底部 ROI + 难度行验证会阻止误点。
+  challenge_threshold: 0.75
+  # 实机确认弹窗约 0.78；确认弹窗优先级高于底层挑战按钮。
+  start_threshold: 0.75
+  # 实机失败结算页约 0.773，命中后关闭并继续挑战难度50。
+  close_threshold: 0.75
+  other_device_threshold: 0.85
+  near_threshold_delta: 0.05
+
+rois:
+  select_anchor: [100, 55, 450, 150]
+  difficulty_list: [70, 320, 480, 805]
+  challenge_button: [150, 820, 400, 950]
+  start_button: [160, 620, 390, 770]
+  close_prompt: [140, 680, 410, 850]
+  other_device_message: [40, 400, 510, 620]
+
+template_crops:
+  select_anchor: [140, 60, 410, 140]
+  challenge_button: [180, 875, 370, 925]
+  start_button: [205, 675, 350, 740]
+  close_prompt: [220, 748, 335, 785]
+  other_device_message: [70, 470, 480, 560]
+
+difficulty:
+  # 只刷列表最后一关（当前为难度50）；确认到底前不挑战其他难度。
+  last_level_only: true
+  target_level: 50
+  row_centers: [360, 450, 555, 655, 760]
+  # 必须点左侧「难度 XX」圆形区域；点中间 logo 会弹出 BUFF 信息。
+  click_x: 110
+  click_half_width: 35
+  row_half_height: 28
+  row_inner_x1: 90
+  row_inner_x2: 460
+  border_thickness: 8
+  saturation_threshold: 75.0
+  high_saturation_threshold: 90.0
+  high_saturation_ratio: 0.25
+  gray_ratio_threshold: 0.40
+  yellow_hsv_lower: [5, 40, 100]
+  yellow_hsv_upper: [50, 255, 255]
+  yellow_border_ratio_threshold: 0.06
+  yellow_edge_coverage_threshold: 0.25
+  scroll:
+    enabled: true
+    scroll_x: 275
+    # 单次滑动距离宜小，避免一次掠过最高层。
+    down_start_y: 680
+    down_end_y: 540
+    up_start_y: 420
+    up_end_y: 560
+    # 把贴顶最高层移到中间（更小步长）
+    center_min_index: 1
+    center_up_start_y: 480
+    center_up_end_y: 580
+    # 连续 N 次下滑后列表画面几乎不变 + 全解锁 → 视为满级底部（如50）
+    unchanged_scrolls_for_max: 1
+    # 容忍火焰、星标等动画产生的逐帧噪声；真正滚动时差异远高于此值。
+    fingerprint_mean_diff_threshold: 0.75
+    fingerprint_equal_ratio_threshold: 0.50
+    # 保留项：不再用「滑几下全解锁」判定满级（会在中途如14层误停）
+    max_all_unlocked_scrolls: 99
+    duration: 0.35
+    post_wait: 0.55
+    max_attempts: 25
+
+actions:
+  cooldown: 0.45
+  post_select_wait: 0.40
+  post_click_wait: 0.50
+  # 点击“挑战深渊”后暂停其他动作，等待弹窗完成动画，再固定点击开始按钮。
+  confirm_open_wait: 1.2
+  confirm_start_point: [277, 707]
+  confirm_start_bounds: [205, 675, 350, 740]
+  # 首次点击开始后先等待进入战斗，避免动画期间重复点击。
+  start_retry_wait: 1.5
+  max_select_retries: 3
+  battle_timeout: 900.0
+  unknown_timeout: 30.0
+  debounce_frames: 2
+  debounce_required: 1
+  click_jitter:
+    enabled: true
+    inset_px: 4
+    inset_ratio: 0.18
+
+hotkeys:
+  toggle: "<f8>"
+  stop: "<f9>"
+  debug: "<f10>"
+  emergency_pause: "<esc>"
+
+debug:
+  enabled: false
+  save_unknown_frames: true
+  save_action_frames: true
+  max_files: 80
+
+pyautogui:
+  failsafe: true
+  pause: 0.05
