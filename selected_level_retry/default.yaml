@@ -1,0 +1,41 @@
+# 选定关卡重复挑战模式的附加配置。
+# 根项目的窗口、截图、模板和输入配置仍然来自 config/default.yaml。
+
+target:
+  # 选中关卡的内部图像区域。避开外侧黄色选中框，保留关卡文字和奖励图标。
+  signature_x1: 90
+  signature_x2: 460
+  signature_half_height: 24
+  min_good_matches: 8
+  min_feature_ratio: 0.06
+  template_threshold: 0.88
+
+recovery:
+  enabled: true
+  max_scrolls: 36
+  unchanged_scrolls_before_reverse: 1
+  scroll_x: 275
+  down_start_y: 680
+  down_end_y: 540
+  up_start_y: 420
+  up_end_y: 560
+  duration: 0.35
+  post_wait: 0.55
+
+result:
+  # 必须配置成功结算模板。建议裁剪成功结算中稳定的标题/徽章区域，而不是整张截图。
+  # 路径相对于项目根目录；例如 selected_level_retry/templates/success.png
+  success_template: ""
+  success_roi: [0, 0, 550, 1020]
+  success_threshold: 0.80
+
+  # 可选的失败模板。未配置时，只要成功模板未命中，就按失败处理（可修改下方策略）。
+  failure_template: ""
+  failure_roi: [0, 0, 550, 1020]
+  failure_threshold: 0.75
+  assume_non_success_is_failure: true
+  unknown_policy: "pause"
+
+  # 0 表示无限重试；大于 0 时达到次数后暂停。
+  max_attempts: 0
+
