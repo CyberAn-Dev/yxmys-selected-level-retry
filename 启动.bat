@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title TowerBot
+title 当前难度重复挑战
 
 if not exist "%~dp0.venv\Scripts\python.exe" (
   echo [ERROR] Missing: %~dp0.venv\Scripts\python.exe
@@ -23,8 +23,8 @@ if errorlevel 1 (
 REM Use pythonw: GUI only, no console window left behind.
 REM Logs still go to logs\tower_bot.log
 if exist "%~dp0.venv\Scripts\pythonw.exe" (
-  start "" "%~dp0.venv\Scripts\pythonw.exe" -m tower_bot
+  start "" "%~dp0.venv\Scripts\pythonw.exe" -m selected_level_retry
 ) else (
-  start "" "%~dp0.venv\Scripts\python.exe" -m tower_bot
+  start "" "%~dp0.venv\Scripts\python.exe" -m selected_level_retry
 )
 exit /b 0

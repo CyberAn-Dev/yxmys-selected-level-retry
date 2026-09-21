@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping, Optional
+from typing import Mapping
 
 import cv2
 import numpy as np
@@ -99,117 +99,12 @@ class DifficultyDetector:
                 )
             )
 
-        unlocked_indices = [r.row_index for r in rows if r.unlocked]
-        highest = max(unlocked_indices) if unlocked_indices else None
         selected_indices = [r.row_index for r in rows if r.selected]
         selected = selected_indices[0] if selected_indices else None
-        if highest is not None and rows[highest].selected:
-            selected = highest
-
-        at_frontier = False
-        needs_scroll_down = False
-        needs_scroll_up = False
-        needs_center_up = False
-        all_unlocked_visible = bool(rows) and all(r.unlocked for r in rows)
-
-        center_min = int(self.cfg["difficulty"].get("scroll", {}).get("center_min_index", 1))
-
-        if highest is None:
-            needs_scroll_up = len(rows) > 0
-        else:
-            locked_below = any(
-                (not row.unlocked) and row.row_index > highest for row in rows
-            )
-            locked_above = any(
-                (not row.unlocked) and row.row_index < highest for row in rows
-            )
-            # 灰色锁定刚好在末行采样点下方（未落入 row_centers）时，也视为交界。
-            gray_peek_below = False
-            if not locked_below and rows[highest].unlocked:
-                gray_peek_below = self._gray_locked_below_row(
-                    hsv,
-                    rows=rows,
-                    below_index=highest,
-                    x1=x1,
-                    x2=x2,
-                    half=half,
-                    sat_th=sat_th,
-                    high_sat_th=high_sat_th,
-                    high_ratio_th=high_ratio_th,
-                    gray_ratio_th=gray_ratio_th,
-                )
-
-            if locked_below or gray_peek_below:
-                at_frontier = True
-                # 最高层贴顶只露一部分时，先上滑居中再点选/挑战。
-                if highest < center_min:
-                    needs_center_up = True
-            elif locked_above and highest == max(r.row_index for r in rows):
-                at_frontier = True
-            else:
-                # 可见行没有灰色交界：可能是列表偏上，也可能是满级 50（无灰色）。
-                needs_scroll_down = True
-
-        # 硬规则：整页全是已解锁/已通过 → 绝不是可挑战的「最高交界」。
-        # 战后列表弹回顶部时常见；若此时挑战会打到低难度（如4）。满级底部由
-        # controller 用「下滑后画面不变」判定后再挑战。
-        if all_unlocked_visible:
-            at_frontier = False
-            needs_scroll_down = True
-            needs_center_up = False
-
         return DifficultyAnalysis(
             rows=rows,
-            highest_unlocked_index=highest,
             selected_index=selected,
-            needs_scroll_down=needs_scroll_down,
-            needs_scroll_up=needs_scroll_up,
-            needs_center_up=needs_center_up,
-            all_unlocked_visible=all_unlocked_visible,
-            at_unlock_frontier=at_frontier,
         )
-
-    def _gray_locked_below_row(
-        self,
-        hsv: np.ndarray,
-        *,
-        rows: list[RowAnalysis],
-        below_index: int,
-        x1: int,
-        x2: int,
-        half: int,
-        sat_th: float,
-        high_sat_th: float,
-        high_ratio_th: float,
-        gray_ratio_th: float,
-    ) -> bool:
-        """在 highest 行下方再探测一格，捕捉未对齐到 row_centers 的灰色锁定。"""
-        if below_index < 0 or below_index >= len(rows):
-            return False
-        centers = [int(v) for v in self.cfg["difficulty"]["row_centers"]]
-        if len(centers) >= 2:
-            spacing = max(40, centers[-1] - centers[-2])
-        else:
-            spacing = max(40, half * 2)
-        cy = rows[below_index].center_y + spacing
-        h = hsv.shape[0]
-        y1 = max(0, cy - half)
-        y2 = min(h, cy + half)
-        if y2 - y1 < max(8, half):
-            return False
-        inner = hsv[y1:y2, x1:x2]
-        if inner.size == 0:
-            return False
-        sat = inner[:, :, 1].astype(np.float32)
-        val = inner[:, :, 2].astype(np.float32)
-        mean_sat = float(np.mean(sat))
-        high_ratio = float(np.mean(sat >= high_sat_th))
-        gray_mask = (sat < 45) & (val > 40) & (val < 200)
-        gray_ratio = float(np.mean(gray_mask))
-        unlocked = (mean_sat > sat_th or high_ratio > high_ratio_th) and (
-            gray_ratio < gray_ratio_th
-        )
-        return (not unlocked) and gray_ratio >= gray_ratio_th
 
     @staticmethod
     def _yellow_border_stats(
@@ -263,7 +158,3 @@ class DifficultyDetector:
             return yellow_ratio, 1.0
         edge_coverage = covered / 4.0
         return yellow_ratio, edge_coverage
-
-    def highest_unlocked_center(self, analysis: DifficultyAnalysis) -> Optional[int]:
-        row = analysis.highest_unlocked_row
-        return None if row is None else row.center_y

@@ -114,7 +114,11 @@ class StateMachine:
             stable = raw_state
 
         self._stable_state = stable
-        if stable == BotState.CONFIRM_CHALLENGE:
+        # 点击“开始挑战”后，确认弹窗可能还会残留一两帧。
+        # controller.mark_battle_started() 已经把 in_battle 置为 True 时，
+        # 不能被这段过渡画面重新清零，否则弹窗消失后下一帧会变成 UNKNOWN，
+        # 最终触发 30 秒未知状态超时。
+        if stable == BotState.CONFIRM_CHALLENGE and not self.in_battle:
             self.in_battle = False
         if stable == BotState.IN_BATTLE:
             self.in_battle = True
@@ -234,59 +238,9 @@ class StateMachine:
                 "检测到开始挑战",
             )
         if state == BotState.SELECT_DIFFICULTY:
-            # 滑过头：全灰 → 向上回滑。
-            if diff.needs_scroll_up:
-                return (
-                    ActionType.SCROLL_DIFFICULTY_UP,
-                    None,
-                    None,
-                    "可见难度均为灰色锁定，向上回滑寻找最高已解锁",
-                )
-            # 交界在顶部只露一部分 → 先居中。
-            if diff.needs_center_up:
-                return (
-                    ActionType.SCROLL_DIFFICULTY_UP,
-                    None,
-                    None,
-                    f"最高难度行#{diff.highest_unlocked_index}贴在顶部，上滑居中后再选择",
-                )
-            # 列表偏上：下方看不到灰色锁定 → 必须向下滑动。
-            # 整页全解锁时禁止挑战（含战后弹回顶部选中低难度的情况）。
-            if diff.needs_scroll_down:
-                return (
-                    ActionType.SCROLL_DIFFICULTY_DOWN,
-                    None,
-                    None,
-                    "下方未见灰色锁定，向下滑动寻找最高已解锁难度",
-                )
-            # 仅在「已解锁紧挨灰色」的真实交界处才允许点选/挑战。
-            if not diff.at_unlock_frontier:
-                return (
-                    ActionType.SCROLL_DIFFICULTY_DOWN,
-                    None,
-                    None,
-                    "未确认最高交界，继续下滑寻找",
-                )
-            highest = diff.highest_unlocked_row
-            if highest is None:
-                return ActionType.NONE, None, None, "选择界面但无 unlocked 行"
-            click_x = int(self.cfg["difficulty"]["click_x"])
-            # 最高层已出现金边 → 直接挑战（滑动后的强制重选由 controller 拦截）。
-            if highest.selected:
-                if challenge.center is None:
-                    return ActionType.NONE, None, None, "最高难度已选中但挑战按钮中心缺失"
-                return (
-                    ActionType.CLICK_CHALLENGE,
-                    challenge.center,
-                    _match_click_bounds(challenge),
-                    f"最高难度行#{highest.row_index}已选中，点击挑战深渊",
-                )
-            return (
-                ActionType.CLICK_DIFFICULTY,
-                Point(click_x, highest.center_y),
-                _row_click_bounds(self.cfg, highest.center_y),
-                f"最高难度行#{highest.row_index}未选中，先点击难度",
-            )
+            # 选择页的点击和向下滑动由 selected_level_retry 控制器负责。
+            # 状态机不根据其他难度做任何决策，避免误切换当前关卡。
+            return ActionType.NONE, None, None, "选择页，由当前难度重复挑战控制器处理"
         return ActionType.NONE, None, None, f"状态 {state.name} 无动作"
 
     def mark_battle_started(self) -> None:

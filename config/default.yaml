@@ -18,7 +18,7 @@ matching:
   challenge_threshold: 0.75
   # 实机确认弹窗约 0.78；确认弹窗优先级高于底层挑战按钮。
   start_threshold: 0.75
-  # 实机失败结算页约 0.773，命中后关闭并继续挑战难度50。
+  # 实机成功/失败结算页均会出现“点击关闭”，命中后关闭并继续挑战当前难度。
   close_threshold: 0.75
   other_device_threshold: 0.85
   near_threshold_delta: 0.05
@@ -28,7 +28,8 @@ rois:
   difficulty_list: [70, 320, 480, 805]
   challenge_button: [150, 820, 400, 950]
   start_button: [160, 620, 390, 770]
-  close_prompt: [140, 680, 410, 850]
+  # 当前窗口的成功页和失败页按钮高度不同，ROI 覆盖两种结算布局。
+  close_prompt: [140, 580, 410, 860]
   other_device_message: [40, 400, 510, 620]
 
 template_crops:
@@ -39,9 +40,7 @@ template_crops:
   other_device_message: [70, 470, 480, 560]
 
 difficulty:
-  # 只刷列表最后一关（当前为难度50）；确认到底前不挑战其他难度。
-  last_level_only: true
-  target_level: 50
+  # 由 selected_level_retry 记录并重复挑战用户启动时手动选中的当前难度。
   row_centers: [360, 450, 555, 655, 760]
   # 必须点左侧「难度 XX」圆形区域；点中间 logo 会弹出 BUFF 信息。
   click_x: 110
@@ -58,28 +57,6 @@ difficulty:
   yellow_hsv_upper: [50, 255, 255]
   yellow_border_ratio_threshold: 0.06
   yellow_edge_coverage_threshold: 0.25
-  scroll:
-    enabled: true
-    scroll_x: 275
-    # 单次滑动距离宜小，避免一次掠过最高层。
-    down_start_y: 680
-    down_end_y: 540
-    up_start_y: 420
-    up_end_y: 560
-    # 把贴顶最高层移到中间（更小步长）
-    center_min_index: 1
-    center_up_start_y: 480
-    center_up_end_y: 580
-    # 连续 N 次下滑后列表画面几乎不变 + 全解锁 → 视为满级底部（如50）
-    unchanged_scrolls_for_max: 1
-    # 容忍火焰、星标等动画产生的逐帧噪声；真正滚动时差异远高于此值。
-    fingerprint_mean_diff_threshold: 0.75
-    fingerprint_equal_ratio_threshold: 0.50
-    # 保留项：不再用「滑几下全解锁」判定满级（会在中途如14层误停）
-    max_all_unlocked_scrolls: 99
-    duration: 0.35
-    post_wait: 0.55
-    max_attempts: 25
 
 actions:
   cooldown: 0.45
@@ -104,14 +81,7 @@ actions:
 hotkeys:
   toggle: "<f8>"
   stop: "<f9>"
-  debug: "<f10>"
   emergency_pause: "<esc>"
-
-debug:
-  enabled: false
-  save_unknown_frames: true
-  save_action_frames: true
-  max_files: 80
 
 pyautogui:
   failsafe: true

@@ -26,7 +26,6 @@ class ActionType(Enum):
     CLICK_CLOSE = auto()
     STOP_FOR_OTHER_DEVICE = auto()
     SCROLL_DIFFICULTY_DOWN = auto()
-    SCROLL_DIFFICULTY_UP = auto()
 
 
 @dataclass(frozen=True)
@@ -103,24 +102,7 @@ class RowAnalysis:
 @dataclass
 class DifficultyAnalysis:
     rows: list[RowAnalysis] = field(default_factory=list)
-    highest_unlocked_index: Optional[int] = None
     selected_index: Optional[int] = None
-    # 当前画面未出现“已解锁紧挨灰色锁定”的交界，需要向下滑动列表。
-    needs_scroll_down: bool = False
-    # 滑过头：可见行全是灰色锁定，需要向上回滑。
-    needs_scroll_up: bool = False
-    # 交界已找到，但最高层贴在列表顶部（只露出一部分），需上滑居中后再点选。
-    needs_center_up: bool = False
-    # 可见行全部已解锁（可能是顶部误触，也可能是满级无灰色）。
-    all_unlocked_visible: bool = False
-    # 已找到与灰色锁定行相接的最高已解锁行。
-    at_unlock_frontier: bool = False
-
-    @property
-    def highest_unlocked_row(self) -> Optional[RowAnalysis]:
-        if self.highest_unlocked_index is None:
-            return None
-        return self.rows[self.highest_unlocked_index]
 
 
 @dataclass
@@ -139,25 +121,6 @@ class FrameAnalysis:
     scale_x: float = 1.0
     scale_y: float = 1.0
     window_size: Tuple[int, int] = (550, 1020)
-
-
-@dataclass
-class RuntimeStats:
-    challenges_started: int = 0
-    results_closed: int = 0
-    last_action: str = "-"
-    operation_history: str = "-"
-    last_error: str = "-"
-    highest_unlocked_row: str = "-"
-    selected_row: str = "-"
-    challenge_score: float = 0.0
-    start_score: float = 0.0
-    close_score: float = 0.0
-    program_status: str = "已停止"
-    window_status: str = "未查找"
-    window_size: str = "-"
-    window_advice: str = "尚未检测到小程序窗口"
-    vision_state: str = BotState.DISABLED.name
 
 
 class BotError(Exception):

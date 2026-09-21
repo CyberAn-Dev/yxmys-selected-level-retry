@@ -12,30 +12,29 @@ target:
 
 recovery:
   enabled: true
+  # 结算后列表会回到初始位置；只向下滑动，直到找回启动时的当前关卡。
   max_scrolls: 36
-  unchanged_scrolls_before_reverse: 1
   scroll_x: 275
   down_start_y: 680
   down_end_y: 540
-  up_start_y: 420
-  up_end_y: 560
   duration: 0.35
   post_wait: 0.55
 
 result:
   # 必须配置成功结算模板。建议裁剪成功结算中稳定的标题/徽章区域，而不是整张截图。
   # 路径相对于项目根目录；例如 selected_level_retry/templates/success.png
-  success_template: ""
-  success_roi: [0, 0, 550, 1020]
+  success_template: "selected_level_retry/templates/success.png"
+  # 胜利标识位于结算画面中部；缩小 ROI 可减少背景变化带来的误匹配。
+  success_roi: [170, 380, 410, 500]
   success_threshold: 0.80
 
-  # 可选的失败模板。未配置时，只要成功模板未命中，就按失败处理（可修改下方策略）。
-  failure_template: ""
-  failure_roi: [0, 0, 550, 1020]
-  failure_threshold: 0.75
-  assume_non_success_is_failure: true
+  # 失败结算标题模板；命中后即使状态机短暂处于 UNKNOWN，也会执行关闭并重试。
+  failure_template: "assets/templates/failure_result.png"
+  failure_roi: [150, 360, 420, 480]
+  failure_threshold: 0.80
+  # 成功模板未命中时暂停，避免未知结算被误判为失败并重复挑战。
+  assume_non_success_is_failure: false
   unknown_policy: "pause"
 
   # 0 表示无限重试；大于 0 时达到次数后暂停。
   max_attempts: 0
-

@@ -11,5 +11,7 @@ __pycache__/
 Thumbs.db
 build/
 dist/
+.build_selected/
 portable/
 *.spec.bak
+*.exe

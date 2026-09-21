@@ -48,8 +48,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "other_device_message": [70, 470, 480, 560],
     },
     "difficulty": {
-        "last_level_only": True,
-        "target_level": 50,
         "row_centers": [360, 450, 555, 655, 760],
         "click_x": 110,
         "click_half_width": 35,
@@ -65,25 +63,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "yellow_hsv_upper": [50, 255, 255],
         "yellow_border_ratio_threshold": 0.06,
         "yellow_edge_coverage_threshold": 0.25,
-        "scroll": {
-            "enabled": True,
-            "scroll_x": 275,
-            "down_start_y": 680,
-            "down_end_y": 540,
-            "up_start_y": 420,
-            "up_end_y": 560,
-            "center_min_index": 1,
-            "center_up_start_y": 480,
-            "center_up_end_y": 580,
-            # 下滑后列表画面不变才视为满级底部；勿用小次数全解锁误判。
-            "unchanged_scrolls_for_max": 1,
-            "fingerprint_mean_diff_threshold": 0.75,
-            "fingerprint_equal_ratio_threshold": 0.50,
-            "max_all_unlocked_scrolls": 99,
-            "duration": 0.35,
-            "post_wait": 0.55,
-            "max_attempts": 25,
-        },
     },
     "actions": {
         "cooldown": 0.45,
@@ -107,14 +86,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "hotkeys": {
         "toggle": "<f8>",
         "stop": "<f9>",
-        "debug": "<f10>",
         "emergency_pause": "<esc>",
-    },
-    "debug": {
-        "enabled": False,
-        "save_unknown_frames": True,
-        "save_action_frames": True,
-        "max_files": 80,
     },
     "pyautogui": {
         "failsafe": True,
@@ -200,7 +172,6 @@ def validate_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
         crops[name] = list(ensure_roi(crops[name], f"template_crops.{name}"))
 
     difficulty = data["difficulty"]
-    _require_number(difficulty, "target_level", 1)
     centers = difficulty.get("row_centers")
     if not isinstance(centers, list) or len(centers) < 1:
         raise ConfigError("difficulty.row_centers 至少需要一行")
@@ -246,9 +217,6 @@ def validate_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
     for key in ("max_select_retries", "debounce_frames", "debounce_required"):
         _require_number(actions, key, 1)
 
-    debug = data["debug"]
-    _require_number(debug, "max_files", 1)
-
     return data
 
 
@@ -289,10 +257,6 @@ def templates_dir() -> Path:
 
 def reference_dir() -> Path:
     return assets_dir() / "reference"
-
-
-def debug_dir() -> Path:
-    return project_root() / "debug"
 
 
 def logs_dir() -> Path:

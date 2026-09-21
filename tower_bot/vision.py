@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping, Optional, Tuple
+from typing import Mapping, Optional
 
 import cv2
 import numpy as np
@@ -154,94 +154,3 @@ class TemplateMatcher:
                 float(m["other_device_threshold"]),
             ),
         }
-
-
-def draw_debug_overlay(
-    frame: np.ndarray,
-    matches: Mapping[str, VisionMatch],
-    rows: Optional[list] = None,
-    *,
-    state_name: str = "",
-    action_name: str = "",
-    highest_index: Optional[int] = None,
-    scale: Tuple[float, float] = (1.0, 1.0),
-    window_size: Tuple[int, int] = (550, 1020),
-) -> np.ndarray:
-    canvas = frame.copy()
-    colors = {
-        "select_anchor": (255, 180, 80),
-        "challenge_button": (80, 180, 255),
-        "start_button": (80, 80, 255),
-        "close_prompt": (180, 255, 80),
-        "other_device_message": (0, 0, 255),
-    }
-
-    for name, match in matches.items():
-        x1, y1, x2, y2 = match.roi
-        color = colors.get(name, (200, 200, 200))
-        cv2.rectangle(canvas, (x1, y1), (x2, y2), color, 1)
-        label = f"{name}:{match.score:.3f}"
-        cv2.putText(
-            canvas,
-            label,
-            (x1 + 4, max(16, y1 - 6)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
-            color,
-            1,
-            cv2.LINE_AA,
-        )
-        if match.box is not None:
-            cv2.rectangle(
-                canvas,
-                (match.box.left, match.box.top),
-                (match.box.right, match.box.bottom),
-                color,
-                2,
-            )
-            if match.center is not None:
-                cv2.circle(canvas, (match.center.x, match.center.y), 5, color, -1)
-
-    if rows:
-        for row in rows:
-            y1 = row.center_y - 28
-            y2 = row.center_y + 28
-            color = (0, 220, 0) if row.unlocked else (120, 120, 120)
-            if row.selected:
-                color = (0, 215, 255)
-            if highest_index is not None and row.row_index == highest_index:
-                color = (0, 255, 255)
-            cv2.rectangle(canvas, (90, y1), (460, y2), color, 2)
-            text = (
-                f"#{row.row_index} S={row.mean_saturation:.0f} "
-                f"U={int(row.unlocked)} Sel={int(row.selected)}"
-            )
-            cv2.putText(
-                canvas,
-                text,
-                (95, y1 + 18),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.42,
-                color,
-                1,
-                cv2.LINE_AA,
-            )
-
-    header = [
-        f"state={state_name}",
-        f"action={action_name}",
-        f"win={window_size[0]}x{window_size[1]}",
-        f"scale={scale[0]:.2f},{scale[1]:.2f}",
-    ]
-    for i, line in enumerate(header):
-        cv2.putText(
-            canvas,
-            line,
-            (12, 24 + i * 20),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (240, 240, 240),
-            1,
-            cv2.LINE_AA,
-        )
-    return canvas

@@ -6,7 +6,7 @@ from typing import Any, Mapping, Optional
 import yaml
 
 from tower_bot.config import deep_merge, load_config
-from tower_bot.models import ConfigError, ensure_roi, project_root
+from tower_bot.models import ConfigError, ensure_roi, project_root, resource_root
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -23,12 +23,9 @@ FEATURE_DEFAULTS: dict[str, Any] = {
     "recovery": {
         "enabled": True,
         "max_scrolls": 36,
-        "unchanged_scrolls_before_reverse": 1,
         "scroll_x": 275,
         "down_start_y": 680,
         "down_end_y": 540,
-        "up_start_y": 420,
-        "up_end_y": 560,
         "duration": 0.35,
         "post_wait": 0.55,
     },
@@ -36,10 +33,11 @@ FEATURE_DEFAULTS: dict[str, Any] = {
         "success_template": "",
         "success_roi": [0, 0, 550, 1020],
         "success_threshold": 0.80,
-        "failure_template": "",
-        "failure_roi": [0, 0, 550, 1020],
-        "failure_threshold": 0.75,
-        "assume_non_success_is_failure": True,
+        "failure_template": "assets/templates/failure_result.png",
+        "failure_roi": [150, 360, 420, 480],
+        "failure_threshold": 0.80,
+        # 成功模板未命中时暂停，避免把未知结算误当失败并重复挑战。
+        "assume_non_success_is_failure": False,
         "unknown_policy": "pause",
         "max_attempts": 0,
     },
@@ -95,15 +93,10 @@ def validate_feature_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
 
     recovery = data["recovery"]
     recovery["max_scrolls"] = int(_number(recovery, "max_scrolls", 1))
-    recovery["unchanged_scrolls_before_reverse"] = int(
-        _number(recovery, "unchanged_scrolls_before_reverse", 1)
-    )
     for key in (
         "scroll_x",
         "down_start_y",
         "down_end_y",
-        "up_start_y",
-        "up_end_y",
     ):
         recovery[key] = int(_number(recovery, key, 0))
     recovery["duration"] = _number(recovery, "duration", 0.01)
@@ -128,7 +121,13 @@ def resolve_feature_path(value: str | Path) -> Path:
     path = Path(value)
     if path.is_absolute():
         return path
-    return project_root() / path
+    # 源码模式优先使用项目根目录的可编辑资源；单文件打包模式下，
+    # 资源通常位于 PyInstaller 的 _MEIPASS/_internal 目录。
+    external = project_root() / path
+    if external.exists():
+        return external
+    bundled = resource_root() / path
+    return bundled if bundled.exists() else external
 
 
 def load_feature_config(

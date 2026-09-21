@@ -1,7 +1,0 @@
-opencv-python
-mss
-numpy
-pyautogui
-pynput
-pywin32
-Pillow

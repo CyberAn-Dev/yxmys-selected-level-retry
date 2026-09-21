@@ -17,26 +17,48 @@ logger = get_logger(__name__)
 class ClickBackend(Protocol):
     def click(self, x: int, y: int) -> None: ...
 
+    def move_to(self, x: int, y: int, duration: float) -> None: ...
+
     def drag(self, x1: int, y1: int, x2: int, y2: int, duration: float) -> None: ...
+
+    def scroll(self, x: int, y: int, clicks: int) -> None: ...
 
 
 class PyAutoGuiBackend:
     def click(self, x: int, y: int) -> None:
         pyautogui.click(x, y)
 
+    def move_to(self, x: int, y: int, duration: float) -> None:
+        pyautogui.moveTo(x, y, duration=max(0.0, float(duration)))
+
     def drag(self, x1: int, y1: int, x2: int, y2: int, duration: float) -> None:
         pyautogui.moveTo(x1, y1, duration=0.05)
         pyautogui.dragTo(x2, y2, duration=max(0.1, float(duration)), button="left")
+
+    def scroll(self, x: int, y: int, clicks: int) -> None:
+        pyautogui.moveTo(x, y, duration=0.05)
+        pyautogui.scroll(int(clicks))
 
 
 class DryRunBackend:
     def __init__(self) -> None:
         self.clicks: list[tuple[int, int]] = []
+        self.moves: list[tuple[int, int]] = []
         self.drags: list[tuple[int, int, int, int]] = []
+        self.scrolls: list[tuple[int, int, int]] = []
 
     def click(self, x: int, y: int) -> None:
         self.clicks.append((x, y))
         logger.info("[DRY-RUN] 本应点击 screen=(%d,%d)，已跳过", x, y)
+
+    def move_to(self, x: int, y: int, duration: float) -> None:
+        self.moves.append((x, y))
+        logger.info(
+            "[DRY-RUN] 本应移动鼠标到 screen=(%d,%d) duration=%.2f，已跳过",
+            x,
+            y,
+            duration,
+        )
 
     def drag(self, x1: int, y1: int, x2: int, y2: int, duration: float) -> None:
         self.drags.append((x1, y1, x2, y2))
@@ -47,6 +69,15 @@ class DryRunBackend:
             x2,
             y2,
             duration,
+        )
+
+    def scroll(self, x: int, y: int, clicks: int) -> None:
+        self.scrolls.append((x, y, int(clicks)))
+        logger.info(
+            "[DRY-RUN] 本应在 screen=(%d,%d) 滚轮 clicks=%d，已跳过",
+            x,
+            y,
+            clicks,
         )
 
 
@@ -228,6 +259,42 @@ class InputController:
             )
         return screen
 
+    def move_reference(
+        self,
+        window: WindowInfo,
+        point: Point,
+        *,
+        reason: str,
+        expected_hwnd: Optional[int] = None,
+        duration: float = 0.03,
+    ) -> Point:
+        """将鼠标移回参考坐标，不点击、不刷新动作冷却。"""
+        if expected_hwnd is not None and window.hwnd != expected_hwnd:
+            raise BotError("窗口 hwnd 已变化，取消鼠标定位")
+
+        live_rect = self.locator.current_rect(window.hwnd)
+        live_window = WindowInfo(hwnd=window.hwnd, title=window.title, rect=live_rect)
+        self.locator.validate_geometry(live_window)
+        screen = reference_to_screen(
+            point.x,
+            point.y,
+            live_rect,
+            reference_width=int(self.cfg["window"]["reference_width"]),
+            reference_height=int(self.cfg["window"]["reference_height"]),
+        )
+        logger.info(
+            "鼠标回到当前刻印位置: reason=%s ref=(%d,%d) screen=(%d,%d) hwnd=%s dry_run=%s",
+            reason,
+            point.x,
+            point.y,
+            screen.x,
+            screen.y,
+            window.hwnd,
+            self.dry_run,
+        )
+        self.backend.move_to(screen.x, screen.y, float(duration))
+        return screen
+
     def swipe_reference(
         self,
         window: WindowInfo,
@@ -286,3 +353,65 @@ class InputController:
                 f"screen=({s1.x},{s1.y})->({s2.x},{s2.y})"
             )
         return s1, s2
+
+    def scroll_reference(
+        self,
+        window: WindowInfo,
+        point: Point,
+        *,
+        clicks: int,
+        action: ActionType,
+        reason: str,
+        expected_hwnd: Optional[int] = None,
+        frame_fresh: bool = True,
+    ) -> Point:
+        """在参考坐标系内把鼠标移到列表区域并滚动固定次数。"""
+        if not self.enabled_check():
+            raise BotError("自动化未启用，取消滚轮滚动")
+        if not frame_fresh:
+            raise BotError("截图已过期，取消滚轮滚动")
+        if expected_hwnd is not None and window.hwnd != expected_hwnd:
+            raise BotError("窗口 hwnd 已变化，取消滚轮滚动")
+        if int(clicks) == 0:
+            raise BotError("滚轮次数不能为 0")
+        if not self.can_act(action):
+            raise BotError(f"动作冷却中，跳过 {action.name}")
+
+        live_rect = self.locator.current_rect(window.hwnd)
+        live_window = WindowInfo(hwnd=window.hwnd, title=window.title, rect=live_rect)
+        self.locator.validate_geometry(live_window)
+
+        if not self.dry_run:
+            if not self.locator.focus(window.hwnd):
+                raise BotError("无法将目标窗口切到前台，取消滚轮滚动")
+            if not self.locator.is_foreground(window.hwnd):
+                raise BotError("目标窗口不是前台窗口，取消滚轮滚动")
+
+        screen = reference_to_screen(
+            point.x,
+            point.y,
+            live_rect,
+            reference_width=int(self.cfg["window"]["reference_width"]),
+            reference_height=int(self.cfg["window"]["reference_height"]),
+        )
+        logger.info(
+            "执行滚轮 %s: reason=%s ref=(%d,%d) clicks=%d "
+            "screen=(%d,%d) hwnd=%s dry_run=%s",
+            action.name,
+            reason,
+            point.x,
+            point.y,
+            int(clicks),
+            screen.x,
+            screen.y,
+            window.hwnd,
+            self.dry_run,
+        )
+        self.backend.scroll(screen.x, screen.y, int(clicks))
+        self.mark_action(action)
+        if self.on_action is not None:
+            self.on_action(
+                f"{action.name} ref=({point.x},{point.y}) clicks={int(clicks)} "
+                f"screen=({screen.x},{screen.y})"
+            )
+        return screen
