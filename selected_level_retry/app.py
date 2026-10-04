@@ -35,13 +35,17 @@ class HotkeyBridge:
             str(cfg["stop"]): self._on_stop,
         }
         emergency = str(cfg.get("emergency_pause", "")).strip()
-        if emergency and emergency.lower() not in {"<esc>", "esc"}:
+        if emergency:
+            emergency = '<esc>' if emergency.lower() in {'esc', 'escape', '<escape>'} else emergency
+            if emergency in mapping:
+                logger.error("紧急暂停热键与开始/停止热键冲突")
+                return False
             mapping[emergency] = self._on_emergency
 
         try:
             self._listener = keyboard.GlobalHotKeys(mapping)
             self._listener.start()
-            logger.info("热键已注册：F8 开始/暂停，F9 停止")
+            logger.info("热键已注册：%s", ', '.join(mapping))
             return True
         except Exception as exc:  # noqa: BLE001
             logger.warning("全局热键注册失败，将仅使用 GUI 控制: %s", exc)
@@ -110,6 +114,8 @@ def run_app(argv: Optional[list[str]] = None) -> int:
             hotkeys.start()
         if args.no_gui:
             controller.start()
+            if not controller.enabled.is_set():
+                return 1
             while not controller.stopping.is_set():
                 controller.join(timeout=0.5)
         else:
@@ -132,3 +138,4 @@ def main(argv: Optional[list[str]] = None) -> None:
         traceback.print_exc()
         logger.exception("选定关卡重复挑战启动失败")
         print("\n启动失败，详细错误见日志", flush=True)
+        raise SystemExit(1)

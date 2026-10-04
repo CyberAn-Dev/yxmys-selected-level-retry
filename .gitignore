@@ -13,5 +13,6 @@ build/
 dist/
 .build_selected/
 portable/
+release/
 *.spec.bak
 *.exe

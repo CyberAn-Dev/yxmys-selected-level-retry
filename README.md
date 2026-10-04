@@ -2,7 +2,7 @@
 
 Windows 桌面程序：通过截图、OpenCV 模板匹配和颜色分析，反复挑战微信小程序《英雄没有闪》中的当前难度，直到成功。
 
-当前版本：`v1.0.0`
+当前版本：`v1.0.1`
 
 ## 唯一工作流程
 
@@ -17,13 +17,13 @@ Windows 桌面程序：通过截图、OpenCV 模板匹配和颜色分析，反�
 
 ## 安装
 
-Windows 10/11，Python 3.11+：
+Windows 10/11，验证及构建环境为 Python 3.11：
 
 ```powershell
 cd F:\PersonalDev\yxmys-selected-level-retry
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-build.lock
 ```
 
 ## 配置成功结算模板
@@ -47,7 +47,7 @@ result:
 
 ## 启动
 
-双击根目录的 `启动.bat`，也可以直接运行根目录的 `yxmys_selected_level_retry.exe`（不需要 Python）。源码启动命令：
+双击根目录的 `启动.bat`，优先打开本项目 `release/yxmys_selected_level_retry.exe`（不需要 Python）。源码启动命令：
 
 ```powershell
 .\.venv\Scripts\python.exe -m selected_level_retry
@@ -94,3 +94,13 @@ logs/                   # 日志
 ```
 
 自动化可能违反游戏或平台规则，也可能导致账号处罚。请确认你有权操作相关设备和账号，并自行承担使用风险。
+
+## v1.0.1 修复与构建
+
+- 修复 Esc 未注册、聚焦期间暂停仍发送点击、滚动及拖拽取消检查；拖拽取消会释放本程序按下的鼠标键。
+- 确认弹窗要求按钮模板证据和连续稳定帧，纯白/灰加载画面不再凭亮度触发点击。
+- 修复状态切换时沿用旧识别状态、无界面启动失败空转、工作线程直接调用 Tk 和 F9 停止后窗口不退出。
+- 战斗内检测间隔调为 0.30 秒；使用固定构建目录，排除不用的视频 DLL 和开发参考截图。
+- `build.ps1` 运行离线回归测试、构建 EXE、执行隔离自检，全部成功才替换 release 中的正式文件。
+- `release/release-info.json` 包含版本、源码提交、SHA256 和自检结果。`--self-test <结果.json>` 不注册热键、不启动游戏操作。
+- 保留必要测试和模板原始素材；build 中的中间产物均可重建。真实游戏长期运行和所有缩放比例仍需使用者验证。

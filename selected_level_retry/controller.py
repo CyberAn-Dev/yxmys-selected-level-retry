@@ -214,6 +214,9 @@ class SelectedLevelRetryController:
             return
 
         if self._target is None:
+            if analysis.state == BotState.UNKNOWN:
+                self._check_unknown_timeout(analysis)
+                return
             if analysis.state != BotState.SELECT_DIFFICULTY:
                 raise BotError("请先在游戏中手动选中一关，再点击开始")
             self._remember_target(frame, analysis)
@@ -378,8 +381,7 @@ class SelectedLevelRetryController:
             return
         popup_visible = (
             analysis.state == BotState.CONFIRM_CHALLENGE
-            or analysis.start.hit
-            or analysis.start.score >= 0.50
+            and analysis.start.hit
         )
         if not popup_visible:
             self._pending_confirm_since = None
@@ -390,6 +392,8 @@ class SelectedLevelRetryController:
         self._click_start(window, analysis, reason="挑战按钮已点击，确认弹窗稳定")
 
     def _click_start(self, window: WindowInfo, analysis: FrameAnalysis, *, reason: str) -> None:
+        if analysis.state != BotState.CONFIRM_CHALLENGE or not analysis.start.hit:
+            return
         self._ensure_attempt_available()
         if not self.input.can_act(ActionType.CLICK_START):
             return
@@ -406,7 +410,7 @@ class SelectedLevelRetryController:
             expected_hwnd=window.hwnd,
             frame_fresh=self.capture.is_fresh(),
             state_allows=analysis.state == BotState.CONFIRM_CHALLENGE,
-            confidence_ok=True,
+            confidence_ok=analysis.start.hit,
             allow_jitter=False,
         )
         self._pending_confirm_since = None

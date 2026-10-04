@@ -70,7 +70,9 @@ class StateMachine:
         select_anchor = matches["select_anchor"]
         challenge = matches["challenge_button"]
         start = matches["start_button"]
-        if not start.hit and self._looks_like_confirm_dialog(frame):
+        if (not start.hit
+                and start.score >= max(0.70, float(self.cfg['matching']['start_threshold']) - 0.05)
+                and self._looks_like_confirm_dialog(frame)):
             # 模板会受弹窗动画/缩放影响；羊皮纸弹窗结构明确时，只允许点击
             # 固定的红色“开始挑战”按钮区域，不能继续点击底层挑战按钮。
             fallback_box = Rect(205, 675, 350, 740)
@@ -159,12 +161,15 @@ class StateMachine:
                 return 0.0
             saturation = region[:, :, 1]
             value = region[:, :, 2]
-            return float(np.mean((saturation < 110) & (value > 120)))
+            return float(np.mean((saturation >= 10) & (saturation < 110) & (value > 120)))
 
         # 顶部标题纸带和按钮周围底纸必须同时存在，避免把普通选择页误判为弹窗。
         top_ratio = parchment_ratio(50, 290, 500, 345)
         bottom_ratio = parchment_ratio(50, 620, 500, 760)
-        return top_ratio >= 0.55 and bottom_ratio >= 0.45
+        button = hsv[675:740, 205:350]
+        red = ((button[:, :, 0] < 12) | (button[:, :, 0] > 170)) & (button[:, :, 1] > 90) & (button[:, :, 2] > 90)
+        # Bright/white loading screens are never sufficient evidence to click.
+        return top_ratio >= 0.55 and bottom_ratio >= 0.45 and float(np.mean(red)) >= 0.12
 
     def _detect_raw_state(
         self,
@@ -188,16 +193,12 @@ class StateMachine:
         return BotState.UNKNOWN
 
     def _debounced_state(self, raw: BotState) -> BotState:
-        required = int(self.cfg["actions"]["debounce_required"])
-        if len(self._history) < required:
-            return self._stable_state if self._history else raw
-        counts: dict[BotState, int] = {}
-        for state in self._history:
-            counts[state] = counts.get(state, 0) + 1
-        best_state, best_count = max(counts.items(), key=lambda item: item[1])
-        if best_count >= required:
-            return best_state
-        return self._stable_state
+        required = max(1, int(self.cfg["actions"]["debounce_required"]))
+        recent = list(self._history)[-required:]
+        if len(recent) == required and all(state == raw for state in recent):
+            return raw
+        # Do not reuse an actionable state after its visual evidence disappears.
+        return BotState.UNKNOWN
 
     def _decide_action(
         self,
@@ -220,7 +221,7 @@ class StateMachine:
         if state == BotState.IN_BATTLE:
             return ActionType.NONE, None, None, "战斗中，等待结算"
         if state == BotState.RESULT:
-            if close.center is None:
+            if close.center is None or not close.hit:
                 return ActionType.NONE, None, None, "结算态但 close 中心缺失"
             return (
                 ActionType.CLICK_CLOSE,
@@ -229,7 +230,7 @@ class StateMachine:
                 "检测到点击关闭",
             )
         if state == BotState.CONFIRM_CHALLENGE:
-            if start.center is None:
+            if start.center is None or not start.hit:
                 return ActionType.NONE, None, None, "确认弹窗但 start 中心缺失"
             return (
                 ActionType.CLICK_START,

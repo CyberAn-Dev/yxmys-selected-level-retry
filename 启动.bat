@@ -3,6 +3,11 @@ setlocal
 cd /d "%~dp0"
 title 当前难度重复挑战
 
+if exist "%~dp0release\yxmys_selected_level_retry.exe" (
+  start "" "%~dp0release\yxmys_selected_level_retry.exe"
+  exit /b 0
+)
+
 if not exist "%~dp0.venv\Scripts\python.exe" (
   echo [ERROR] Missing: %~dp0.venv\Scripts\python.exe
   pause

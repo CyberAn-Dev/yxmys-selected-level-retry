@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import tkinter as tk
+import copy
+import queue
 from tkinter import font as tkfont
 
 from .controller import RetryStats, SelectedLevelRetryController
@@ -27,8 +29,11 @@ class SelectedLevelRetryUI:
 
     def __init__(self, controller: SelectedLevelRetryController) -> None:
         self.controller = controller
+        self._updates = queue.Queue(maxsize=1)
+        self._closing = False
         self.root = tk.Tk()
-        self.root.title("yxmys")
+        from . import __version__
+        self.root.title(f"yxmys 当前难度重复挑战 v{__version__}")
         self.root.geometry("420x460")
         self.root.minsize(380, 420)
         self.root.configure(bg=self.COLORS["background"])
@@ -55,6 +60,7 @@ class SelectedLevelRetryUI:
         self._build()
         self.controller.on_stats = self._on_stats_threadsafe
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.root.after(80, self._drain_updates)
 
     @staticmethod
     def _pick_font() -> str:
@@ -155,7 +161,7 @@ class SelectedLevelRetryUI:
         tk.Label(
             body,
             text=(
-                f"热键  {toggle_key} 开始/暂停  ·  {stop_key} 停止\n"
+                f"热键  {toggle_key} 开始/暂停  ·  {stop_key} 停止  ·  Esc 紧急暂停\n"
                 "先手动选中难度，再点击开始。异常回到列表时会自动向下找回。"
             ),
             bg=c["background"],
@@ -277,7 +283,33 @@ class SelectedLevelRetryUI:
             row.pack(pady=(7, 10))
 
     def _on_stats_threadsafe(self, stats: RetryStats) -> None:
-        self.root.after(0, lambda: self._apply_stats(stats))
+        # Never call Tk from the worker/hotkey thread, including root.after().
+        if self._closing:
+            return
+        snapshot = copy.deepcopy(stats)
+        try:
+            self._updates.put_nowait(snapshot)
+        except queue.Full:
+            try:
+                self._updates.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._updates.put_nowait(snapshot)
+            except queue.Full:
+                pass
+
+    def _drain_updates(self) -> None:
+        if self._closing:
+            return
+        try:
+            self._apply_stats(self._updates.get_nowait())
+        except queue.Empty:
+            pass
+        if self.controller.stopping.is_set():
+            self._on_close()
+            return
+        self.root.after(80, self._drain_updates)
 
     def _apply_stats(self, stats: RetryStats) -> None:
         self._vars["program_status"].set(stats.program_status)
@@ -308,11 +340,15 @@ class SelectedLevelRetryUI:
         self._status_pill.configure(bg=bg, fg=fg)
 
     def _stop_and_quit(self) -> None:
-        self.controller.stop()
-        self.root.after(150, self.root.quit)
+        self._on_close()
 
     def _on_close(self) -> None:
-        self.controller.shutdown()
+        if self._closing:
+            return
+        self._closing = True
+        self.controller.on_stats = None
+        self.controller.stop()
+        # run_app's finally joins the worker after Tk has closed.
         self.root.destroy()
 
     def run(self) -> None:

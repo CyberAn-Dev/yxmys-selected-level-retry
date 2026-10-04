@@ -25,18 +25,50 @@ class ClickBackend(Protocol):
 
 
 class PyAutoGuiBackend:
+    def __init__(self, enabled_check=None) -> None:
+        self.enabled_check = enabled_check or (lambda: True)
+
+    def _check(self) -> None:
+        if not self.enabled_check():
+            raise BotError('已暂停或停止，取消原生输入')
+
     def click(self, x: int, y: int) -> None:
+        self._check()
         pyautogui.click(x, y)
 
     def move_to(self, x: int, y: int, duration: float) -> None:
+        self._check()
         pyautogui.moveTo(x, y, duration=max(0.0, float(duration)))
 
     def drag(self, x1: int, y1: int, x2: int, y2: int, duration: float) -> None:
-        pyautogui.moveTo(x1, y1, duration=0.05)
-        pyautogui.dragTo(x2, y2, duration=max(0.1, float(duration)), button="left")
+        self._check()
+        pyautogui.moveTo(x1, y1, duration=0, _pause=False)
+        self._check()
+        pressed = False
+        try:
+            pyautogui.mouseDown(button='left', _pause=False)
+            pressed = True
+            steps = max(1, int(max(0.1, float(duration)) / 0.02))
+            for index in range(1, steps + 1):
+                self._check()
+                ratio = index / steps
+                pyautogui.moveTo(round(x1 + (x2 - x1) * ratio),
+                                 round(y1 + (y2 - y1) * ratio), _pause=False)
+                time.sleep(max(0.1, float(duration)) / steps)
+        finally:
+            if pressed:
+                try:
+                    pyautogui.mouseUp(button='left', _pause=False)
+                except pyautogui.FailSafeException:
+                    # FailSafe must still release the button owned by this drag.
+                    import win32api
+                    import win32con
+                    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
     def scroll(self, x: int, y: int, clicks: int) -> None:
+        self._check()
         pyautogui.moveTo(x, y, duration=0.05)
+        self._check()
         pyautogui.scroll(int(clicks))
 
 
@@ -158,8 +190,8 @@ class InputController:
         self.cfg = cfg
         self.locator = locator
         self.dry_run = dry_run
-        self.backend: ClickBackend = backend or (DryRunBackend() if dry_run else PyAutoGuiBackend())
         self.enabled_check = enabled_check or (lambda: True)
+        self.backend: ClickBackend = backend or (DryRunBackend() if dry_run else PyAutoGuiBackend(self.enabled_check))
         self.on_action = on_action
         self.rng = rng or random.Random()
         self.last_action_at = 0.0
@@ -181,6 +213,17 @@ class InputController:
         self.last_action_at = time.monotonic()
         self.last_action_type = action
 
+    def _guard_dispatch(self, window: WindowInfo, rect: Rect, started: float) -> None:
+        """Revalidate after focus/waits, immediately before sending native input."""
+        if not self.enabled_check():
+            raise BotError("已暂停或停止，取消输入")
+        if time.monotonic() - started > float(self.cfg.get('capture', {}).get('max_frame_age', 1.0)):
+            raise BotError("等待期间截图已过期，取消输入")
+        if rect != window.rect or self.locator.current_rect(window.hwnd) != rect:
+            raise BotError("窗口位置或尺寸已变化，等待重新截图")
+        if not self.dry_run and not self.locator.is_foreground(window.hwnd):
+            raise BotError("目标窗口已失去焦点，取消输入")
+
     def click_reference(
         self,
         window: WindowInfo,
@@ -195,6 +238,7 @@ class InputController:
         confidence_ok: bool = True,
         allow_jitter: bool = True,
     ) -> Point:
+        started = time.monotonic()
         if not self.enabled_check():
             raise BotError("自动化未启用，取消点击")
         if not state_allows:
@@ -250,6 +294,7 @@ class InputController:
             window.hwnd,
             self.dry_run,
         )
+        self._guard_dispatch(window, live_rect, started)
         self.backend.click(screen.x, screen.y)
         self.mark_action(action)
         if self.on_action is not None:
@@ -269,6 +314,9 @@ class InputController:
         duration: float = 0.03,
     ) -> Point:
         """将鼠标移回参考坐标，不点击、不刷新动作冷却。"""
+        started = time.monotonic()
+        if not self.enabled_check():
+            raise BotError("已暂停或停止，取消鼠标定位")
         if expected_hwnd is not None and window.hwnd != expected_hwnd:
             raise BotError("窗口 hwnd 已变化，取消鼠标定位")
 
@@ -292,6 +340,7 @@ class InputController:
             window.hwnd,
             self.dry_run,
         )
+        self._guard_dispatch(window, live_rect, started)
         self.backend.move_to(screen.x, screen.y, float(duration))
         return screen
 
@@ -308,6 +357,7 @@ class InputController:
         frame_fresh: bool = True,
     ) -> tuple[Point, Point]:
         """在参考坐标系内拖拽（用于难度列表下滑）。"""
+        started = time.monotonic()
         if not self.enabled_check():
             raise BotError("自动化未启用，取消滑动")
         if not frame_fresh:
@@ -345,6 +395,7 @@ class InputController:
             s2.y,
             self.dry_run,
         )
+        self._guard_dispatch(window, live_rect, started)
         self.backend.drag(s1.x, s1.y, s2.x, s2.y, duration)
         self.mark_action(action)
         if self.on_action is not None:
@@ -366,6 +417,7 @@ class InputController:
         frame_fresh: bool = True,
     ) -> Point:
         """在参考坐标系内把鼠标移到列表区域并滚动固定次数。"""
+        started = time.monotonic()
         if not self.enabled_check():
             raise BotError("自动化未启用，取消滚轮滚动")
         if not frame_fresh:
@@ -407,6 +459,7 @@ class InputController:
             window.hwnd,
             self.dry_run,
         )
+        self._guard_dispatch(window, live_rect, started)
         self.backend.scroll(screen.x, screen.y, int(clicks))
         self.mark_action(action)
         if self.on_action is not None:

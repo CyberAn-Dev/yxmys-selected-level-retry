@@ -20,7 +20,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "capture": {
         "interval": 0.12,
-        "battle_interval": 0.08,
+        "battle_interval": 0.30,
         "locate_retry_interval": 1.0,
         "max_frame_age": 1.0,
     },
@@ -76,7 +76,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "battle_timeout": 900.0,
         "unknown_timeout": 30.0,
         "debounce_frames": 2,
-        "debounce_required": 1,
+        "debounce_required": 2,
         "click_jitter": {
             "enabled": True,
             "inset_px": 4,
