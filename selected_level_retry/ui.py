@@ -34,8 +34,7 @@ class SelectedLevelRetryUI:
         self.root = tk.Tk()
         from . import __version__
         self.root.title(f"yxmys 当前难度重复挑战 v{__version__}")
-        self.root.geometry("420x460")
-        self.root.minsize(380, 420)
+        self.root.geometry("480x540")
         self.root.configure(bg=self.COLORS["background"])
         self.root.option_add("*tearOff", False)
         self.root.lift()
@@ -58,10 +57,7 @@ class SelectedLevelRetryUI:
         self._status_pill: tk.Label | None = None
 
         self._build()
-        self.root.update_idletasks()
-        height = min(self.root.winfo_screenheight() - 100,
-                     max(460, self._body.winfo_reqheight() + 32))
-        self.root.geometry(f"420x{max(300, height)}")
+        self._fit_content(initial=True)
         self.controller.on_stats = self._on_stats_threadsafe
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(80, self._drain_updates)
@@ -76,23 +72,11 @@ class SelectedLevelRetryUI:
 
     def _build(self) -> None:
         c = self.COLORS
-        scrollbar = tk.Scrollbar(self.root, orient="vertical")
-        scrollbar.pack(side="right", fill="y")
-        self._canvas = tk.Canvas(self.root, bg=c["background"],
-                                 highlightthickness=0, yscrollcommand=scrollbar.set)
-        self._canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.configure(command=self._canvas.yview)
-        body = self._body = tk.Frame(self._canvas, bg=c["background"])
-        content = self._canvas.create_window(18, 16, window=body, anchor="nw", width=367)
-        body.bind("<Configure>", lambda event: self._canvas.configure(
-            scrollregion=(0, 0, self._canvas.winfo_width(), body.winfo_reqheight() + 32)))
-        self._canvas.bind("<Configure>", lambda event: self._canvas.itemconfigure(
-            content, width=max(200, event.width - 36)))
-        self.root.bind("<MouseWheel>", lambda event: self._canvas.yview_scroll(
-            -int(event.delta / 120), "units"))
+        body = self._body = tk.Frame(self.root, bg=c["background"], padx=16, pady=12)
+        body.pack(fill="both", expand=True)
 
         header = tk.Frame(body, bg=c["background"])
-        header.pack(fill="x", pady=(0, 14))
+        header.pack(fill="x", pady=(0, 8))
         title_box = tk.Frame(header, bg=c["background"])
         title_box.pack(side="left")
         tk.Label(
@@ -100,7 +84,7 @@ class SelectedLevelRetryUI:
             text="yxmys",
             bg=c["background"],
             fg=c["text"],
-            font=(self.family, 20, "bold"),
+            font=(self.family, 18, "bold"),
         ).pack(anchor="w")
         tk.Label(
             title_box,
@@ -122,7 +106,7 @@ class SelectedLevelRetryUI:
         self._status_pill.pack(side="right", anchor="n", pady=3)
 
         actions = tk.Frame(body, bg=c["background"])
-        actions.pack(fill="x", pady=(0, 14))
+        actions.pack(fill="x", pady=(0, 8))
         self._button(actions, "开始", self.controller.start, primary=True).pack(
             side="left", fill="x", expand=True, padx=(0, 5)
         )
@@ -134,20 +118,20 @@ class SelectedLevelRetryUI:
         )
 
         hero = self._card(body)
-        hero.pack(fill="x", pady=(0, 10))
+        hero.pack(fill="x", pady=(0, 8))
         tk.Label(
             hero,
             text="已挑战次数",
             bg=c["card"],
             fg=c["secondary"],
             font=(self.family, 10),
-        ).pack(anchor="w", padx=16, pady=(13, 0))
+        ).pack(anchor="w", padx=14, pady=(8, 0))
         tk.Label(
             hero,
             textvariable=self._vars["attempts"],
             bg=c["card"],
             fg=c["text"],
-            font=(self.family, 38, "bold"),
+            font=(self.family, 28, "bold"),
         ).pack(anchor="w", padx=16, pady=(0, 0))
         tk.Label(
             hero,
@@ -155,10 +139,10 @@ class SelectedLevelRetryUI:
             bg=c["card"],
             fg=c["secondary"],
             font=(self.family, 10),
-        ).pack(anchor="w", padx=16, pady=(0, 13))
+        ).pack(anchor="w", padx=14, pady=(0, 8))
 
         metrics = tk.Frame(body, bg=c["background"])
-        metrics.pack(fill="x", pady=(0, 10))
+        metrics.pack(fill="x", pady=(0, 8))
         self._metric_card(metrics, "目标难度", "target_status", c["blue"]).pack(
             side="left", fill="both", expand=True, padx=(0, 5)
         )
@@ -185,11 +169,22 @@ class SelectedLevelRetryUI:
             font=(self.family, 9),
             justify="left",
             anchor="w",
-            wraplength=350,
+            wraplength=440,
         )
         self._footer.pack(fill="x", pady=(1, 0))
         self._footer.bind("<Configure>", lambda event: self._footer.configure(
             wraplength=max(150, event.width)))
+
+    def _fit_content(self, *, initial=False):
+        # Reserve the actual requested size; never hide rows in a scroll area.
+        self.root.update_idletasks()
+        width = max(480, self._body.winfo_reqwidth())
+        height = self._body.winfo_reqheight()
+        self.root.minsize(width, height)
+        if initial:
+            self.root.geometry(f"{width}x{height}")
+        elif self.root.winfo_height() < height:
+            self.root.geometry(f"{max(width, self.root.winfo_width())}x{height}")
 
     @staticmethod
     def _display_key(value: object) -> str:
@@ -344,6 +339,7 @@ class SelectedLevelRetryUI:
             f"失败 {stats.failures}  ·  找回 {stats.recovery_scrolls} 次"
         )
         self._update_status_color(stats.program_status)
+        self._fit_content()
 
     def _update_status_color(self, status: str) -> None:
         if self._status_pill is None:

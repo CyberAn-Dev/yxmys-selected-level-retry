@@ -27,14 +27,25 @@ def run(destination):
         ui._on_stats_threadsafe(RetryStats(attempts=3))
         ui._drain_updates()
         assert ui._vars['attempts'].get() == '3'
-        ui._canvas.yview_moveto(1)
         ui.root.update()
         footer_bottom = ui._footer.winfo_rooty() + ui._footer.winfo_height()
-        assert footer_bottom <= ui._canvas.winfo_rooty() + ui._canvas.winfo_height(), 'footer clipped'
-        assert ui._footer.winfo_rooty() >= ui._canvas.winfo_rooty(), 'footer inaccessible'
+        assert footer_bottom <= ui.root.winfo_rooty() + ui.root.winfo_height(), 'footer clipped'
+        assert ui._footer.winfo_rooty() >= ui.root.winfo_rooty(), 'footer inaccessible'
+        assert not hasattr(ui, '_canvas'), 'main page must not scroll'
+        pending = list(ui.root.winfo_children())
+        while pending:
+            widget = pending.pop()
+            pending.extend(widget.winfo_children())
+            assert 'scrollbar' not in widget.winfo_class().lower(), 'main page must not scroll'
+            if widget.winfo_ismapped():
+                assert widget.winfo_rooty() >= ui.root.winfo_rooty(), 'widget above window'
+                assert widget.winfo_rootx() >= ui.root.winfo_rootx(), 'widget left of window'
+                assert widget.winfo_rooty() + widget.winfo_height() <= ui.root.winfo_rooty() + ui.root.winfo_height() + 1, 'widget below window'
+                assert widget.winfo_rootx() + widget.winfo_width() <= ui.root.winfo_rootx() + ui.root.winfo_width() + 1, 'widget right of window'
+        assert ui.root.winfo_height() <= ui.root.winfo_screenheight() - 60, 'window exceeds screen'
         assert not controller.enabled.is_set()
         result.update(version=__version__, templates='passed', white_frame_guard='passed',
-                      ui_updates='passed', scrollable_footer='passed',
+                      ui_updates='passed', single_page_layout='passed',
                       ui_size=[ui.root.winfo_width(), ui.root.winfo_height()], success=True)
     except Exception:
         result['error'] = traceback.format_exc()
