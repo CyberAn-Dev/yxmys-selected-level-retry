@@ -27,9 +27,15 @@ def run(destination):
         ui._on_stats_threadsafe(RetryStats(attempts=3))
         ui._drain_updates()
         assert ui._vars['attempts'].get() == '3'
+        ui._canvas.yview_moveto(1)
+        ui.root.update()
+        footer_bottom = ui._footer.winfo_rooty() + ui._footer.winfo_height()
+        assert footer_bottom <= ui._canvas.winfo_rooty() + ui._canvas.winfo_height(), 'footer clipped'
+        assert ui._footer.winfo_rooty() >= ui._canvas.winfo_rooty(), 'footer inaccessible'
         assert not controller.enabled.is_set()
         result.update(version=__version__, templates='passed', white_frame_guard='passed',
-                      ui_updates='passed', ui_size=[ui.root.winfo_width(), ui.root.winfo_height()], success=True)
+                      ui_updates='passed', scrollable_footer='passed',
+                      ui_size=[ui.root.winfo_width(), ui.root.winfo_height()], success=True)
     except Exception:
         result['error'] = traceback.format_exc()
     finally:

@@ -58,6 +58,10 @@ class SelectedLevelRetryUI:
         self._status_pill: tk.Label | None = None
 
         self._build()
+        self.root.update_idletasks()
+        height = min(self.root.winfo_screenheight() - 100,
+                     max(460, self._body.winfo_reqheight() + 32))
+        self.root.geometry(f"420x{max(300, height)}")
         self.controller.on_stats = self._on_stats_threadsafe
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(80, self._drain_updates)
@@ -72,8 +76,20 @@ class SelectedLevelRetryUI:
 
     def _build(self) -> None:
         c = self.COLORS
-        body = tk.Frame(self.root, bg=c["background"])
-        body.pack(fill="both", expand=True, padx=18, pady=16)
+        scrollbar = tk.Scrollbar(self.root, orient="vertical")
+        scrollbar.pack(side="right", fill="y")
+        self._canvas = tk.Canvas(self.root, bg=c["background"],
+                                 highlightthickness=0, yscrollcommand=scrollbar.set)
+        self._canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.configure(command=self._canvas.yview)
+        body = self._body = tk.Frame(self._canvas, bg=c["background"])
+        content = self._canvas.create_window(18, 16, window=body, anchor="nw", width=367)
+        body.bind("<Configure>", lambda event: self._canvas.configure(
+            scrollregion=(0, 0, self._canvas.winfo_width(), body.winfo_reqheight() + 32)))
+        self._canvas.bind("<Configure>", lambda event: self._canvas.itemconfigure(
+            content, width=max(200, event.width - 36)))
+        self.root.bind("<MouseWheel>", lambda event: self._canvas.yview_scroll(
+            -int(event.delta / 120), "units"))
 
         header = tk.Frame(body, bg=c["background"])
         header.pack(fill="x", pady=(0, 14))
@@ -158,7 +174,7 @@ class SelectedLevelRetryUI:
         hotkeys = self.controller.cfg.get("hotkeys", {})
         toggle_key = self._display_key(hotkeys.get("toggle", "F8"))
         stop_key = self._display_key(hotkeys.get("stop", "F9"))
-        tk.Label(
+        self._footer = tk.Label(
             body,
             text=(
                 f"热键  {toggle_key} 开始/暂停  ·  {stop_key} 停止  ·  Esc 紧急暂停\n"
@@ -169,7 +185,11 @@ class SelectedLevelRetryUI:
             font=(self.family, 9),
             justify="left",
             anchor="w",
-        ).pack(fill="x", pady=(1, 0))
+            wraplength=350,
+        )
+        self._footer.pack(fill="x", pady=(1, 0))
+        self._footer.bind("<Configure>", lambda event: self._footer.configure(
+            wraplength=max(150, event.width)))
 
     @staticmethod
     def _display_key(value: object) -> str:
